@@ -5,26 +5,30 @@ import Link from "next/link"
 import { Archive, FileText, MessageSquarePlus, Send, Sparkles, Wand2 } from "lucide-react"
 import { AppShell } from "@/features/app/app-shell"
 import { AiPipeline, COMPOSE_PIPELINE } from "@/features/app/ai-pipeline"
+import { ComposerAnswer } from "@/features/app/composer-article"
 import { FeaturedImagePanel } from "@/features/app/featured-image-panel"
 import { Button } from "@/components/ui/button"
-import { AI_WAIT_MS, api, isRetryableAiStatus, readError, sleep, type AiConversation, type ImageSuggestion, type Paginated, type Post } from "@/lib/api"
+import { api, isRetryableAiStatus, readError, type AiConversation, type ImageSuggestion, type Paginated, type Post } from "@/lib/api"
 
 type CreateResponse = { conversation: AiConversation }
 
-function ComposerAnswer({ content }: { content: string }) {
-  const sections = content.split(/\n{2,}/).map((section) => section.trim()).filter(Boolean)
-  return (
-    <div className="space-y-4 text-[15px] leading-7 text-foreground sm:text-base">
-      {sections.map((section, index) => (
-        <p
-          key={`${index}-${section.slice(0, 24)}`}
-          className={index === 0 ? "font-heading text-xl leading-snug tracking-tight sm:text-2xl" : index === 1 ? "font-medium text-muted-foreground" : "whitespace-pre-wrap"}
-        >
-          {section}
-        </p>
-      ))}
-    </div>
-  )
+const ACTIVE_KEY = "swiftpost.composerConversation"
+
+function rememberedConversationId() {
+  try {
+    return window.sessionStorage.getItem(ACTIVE_KEY)
+  } catch {
+    return null
+  }
+}
+
+function rememberConversationId(id: string | null) {
+  try {
+    if (id) window.sessionStorage.setItem(ACTIVE_KEY, id)
+    else window.sessionStorage.removeItem(ACTIVE_KEY)
+  } catch {
+    return
+  }
 }
 
 function syncConversationUrl(id: string | null) {
@@ -53,14 +57,16 @@ export function ComposePage() {
     setConversations(next)
     const wanted = selectId ?? wantedId.current ?? activeId.current
     const selected = wanted ? next.find((item) => item.id === wanted) : undefined
-    const nextActive = selected ?? next.find((item) => item.id === activeId.current) ?? next[0] ?? null
+    const generating = next.find((item) => item.is_generating)
+    const nextActive = selected ?? generating ?? next.find((item) => item.id === activeId.current) ?? next[0] ?? null
     setActive(nextActive)
     activeId.current = nextActive?.id ?? null
+    rememberConversationId(nextActive?.id ?? null)
     if (nextActive) syncConversationUrl(nextActive.id)
   }
 
   useEffect(() => {
-    wantedId.current = new URLSearchParams(window.location.search).get("conversation")
+    wantedId.current = new URLSearchParams(window.location.search).get("conversation") || rememberedConversationId()
     const timer = window.setTimeout(() => {
       void loadConversations().catch(() => setNotice("The API is not reachable."))
     }, 0)
@@ -80,7 +86,7 @@ export function ComposePage() {
           }
         })
         .catch(() => null)
-    }, 1500)
+    }, 1200)
     return () => window.clearInterval(poll)
   }, [active?.id, active?.is_generating])
 
@@ -94,6 +100,7 @@ export function ComposePage() {
     setActive(conversation)
     activeId.current = conversation.id
     wantedId.current = conversation.id
+    rememberConversationId(conversation.id)
     setConversations((items) => {
       const exists = items.some((item) => item.id === conversation.id)
       if (!exists) return [conversation, ...items]
@@ -101,64 +108,10 @@ export function ComposePage() {
     })
   }
 
-  function composerFinished(conversation: AiConversation, assistantCount: number) {
-    const nextAssistants = conversation.messages.filter((item) => item.role === "assistant").length
-    if (conversation.last_error && !conversation.is_generating && nextAssistants <= assistantCount) {
-      return "error" as const
-    }
-    if (!conversation.is_generating && (nextAssistants > assistantCount || conversation.post)) {
-      return "done" as const
-    }
-    return "wait" as const
-  }
-
-  async function waitForComposerResult(conversationId: string | null, assistantCount: number, sentAt: number) {
-    const deadline = Date.now() + AI_WAIT_MS
-    while (Date.now() < deadline) {
-      await sleep(1500)
-      try {
-        let match: AiConversation | null = null
-        if (conversationId) {
-          match = await loadConversation(conversationId)
-        } else {
-          const response = await api("/api/v1/ai/composer/conversations/?page_size=50")
-          if (!response.ok) continue
-          const next = ((await response.json()) as Paginated<AiConversation>).results
-          match = next.find((item) => Date.parse(item.updated_at) >= sentAt - 8000) ?? next[0] ?? null
-        }
-        if (!match) continue
-        applyConversation(match)
-        syncConversationUrl(match.id)
-        const state = composerFinished(match, assistantCount)
-        if (state === "done") return match
-        if (state === "error") {
-          setNotice(match.last_error || "Composer could not finish that draft.")
-          return match
-        }
-      } catch {
-        continue
-      }
-    }
-    return null
-  }
-
   function showConversation(conversation: AiConversation) {
     setPrompt("")
-    setActive(conversation)
-    activeId.current = conversation.id
-    wantedId.current = conversation.id
+    applyConversation(conversation)
     syncConversationUrl(conversation.id)
-  }
-
-  async function finishComposerWait(conversationId: string | null, assistantCount: number, sentAt: number) {
-    const recovered = await waitForComposerResult(conversationId, assistantCount, sentAt)
-    if (recovered && composerFinished(recovered, assistantCount) === "done") {
-      showConversation(recovered)
-      await loadConversations(recovered.id)
-      return true
-    }
-    if (recovered?.last_error) return true
-    return false
   }
 
   async function send(event: React.FormEvent) {
@@ -166,8 +119,6 @@ export function ComposePage() {
     const content = prompt.trim()
     if (!content) return
     const conversationId = active?.id ?? null
-    const assistantCount = active?.messages.filter((item) => item.role === "assistant").length ?? 0
-    const sentAt = Date.now()
     setPending(true)
     setNotice(null)
     try {
@@ -184,25 +135,16 @@ export function ComposePage() {
         const body = (await response.json()) as AiConversation | CreateResponse
         const conversation = "conversation" in body ? body.conversation : body
         showConversation(conversation)
-        if (conversation.is_generating) {
-          const finished = await finishComposerWait(conversation.id, assistantCount, sentAt)
-          if (!finished) {
-            setNotice("Composer is still writing. Stay on this page — the draft should appear without a refresh.")
-          }
-          return
-        }
-        await loadConversations(conversation.id)
         return
       }
       if (isRetryableAiStatus(response.status)) {
-        const finished = await finishComposerWait(conversationId, assistantCount, sentAt)
-        if (finished) return
+        await loadConversations(conversationId ?? undefined)
+        return
       }
       setNotice(await readError(response, "Composer could not answer that request."))
     } catch {
-      const finished = await finishComposerWait(conversationId, assistantCount, sentAt)
-      if (finished) return
-      setNotice("Composer is still writing. Stay on this page — the draft should appear without a refresh.")
+      await loadConversations(conversationId ?? undefined).catch(() => null)
+      setNotice("Composer is writing in the background. You can leave this page and come back.")
     } finally {
       setPending(false)
     }
@@ -221,6 +163,7 @@ export function ComposePage() {
     setActive(null)
     activeId.current = null
     wantedId.current = null
+    rememberConversationId(null)
     syncConversationUrl(null)
     await loadConversations()
   }
@@ -230,15 +173,14 @@ export function ComposePage() {
     setActive(null)
     activeId.current = null
     wantedId.current = null
+    rememberConversationId(null)
     setPrompt("")
     setNotice(null)
     syncConversationUrl(null)
   }
 
   function openConversation(conversation: AiConversation) {
-    setActive(conversation)
-    activeId.current = conversation.id
-    wantedId.current = conversation.id
+    applyConversation(conversation)
     setNotice(null)
     syncConversationUrl(conversation.id)
   }
@@ -271,7 +213,9 @@ export function ComposePage() {
                 className={`w-full rounded-xl px-3 py-2 text-left text-sm transition-colors ${active?.id === conversation.id ? "bg-primary/10 text-foreground" : "hover:bg-muted"}`}
               >
                 <span className="block truncate font-medium">{conversation.title || "Untitled chat"}</span>
-                <span className="mt-1 block text-xs text-muted-foreground">{new Date(conversation.updated_at).toLocaleDateString()}</span>
+                <span className="mt-1 block text-xs text-muted-foreground">
+                  {conversation.is_generating ? "Writing…" : new Date(conversation.updated_at).toLocaleDateString()}
+                </span>
               </button>
             ))}
           </div>
@@ -279,7 +223,7 @@ export function ComposePage() {
 
         <aside className="order-1 xl:sticky xl:top-24 xl:order-3 xl:self-start">
           <FeaturedImagePanel
-            key={`${active?.post?.id ?? "pending"}-${suggestions.map((item) => item.id).join("-")}`}
+            key={`${active?.id ?? "new"}-${active?.post?.id ?? "pending"}`}
             post={active?.post ?? null}
             query={active?.title || prompt}
             initialSuggestions={suggestions}
@@ -322,10 +266,15 @@ export function ComposePage() {
           <div className="min-h-[22rem] space-y-5 p-3 sm:p-5 lg:p-6">
             {!active && !pending ? (
               <div className="rounded-2xl border border-dashed bg-muted/30 p-6 text-sm text-muted-foreground">
-                Start with a title. Composer writes a full private article, then you pick images on the right and open the editor when you are ready.
+                Start with a title. Composer writes a detailed private blog, attaches two or three live photos, and you open the editor when you are ready.
               </div>
             ) : null}
-            {active?.messages.map((message) => (
+            {active?.messages
+              .filter((message) => message.role === "user" || message.content.trim())
+              .map((message, _index, visible) => {
+                const lastAssistant = [...visible].reverse().find((item) => item.role === "assistant")
+                const showPost = message.role === "assistant" && lastAssistant?.id === message.id
+                return (
               <div
                 key={message.id}
                 className={`text-sm leading-7 ${message.role === "user" ? "ml-auto max-w-3xl rounded-2xl bg-primary p-4 text-primary-foreground sm:p-5" : "w-full px-1 py-2"}`}
@@ -333,13 +282,18 @@ export function ComposePage() {
                 <p className="mb-2 text-[10px] font-medium tracking-[0.14em] uppercase opacity-70">
                   {message.role === "user" ? "You" : "Composer"}
                 </p>
-                {message.role === "assistant" ? <ComposerAnswer content={message.content} /> : <div className="whitespace-pre-wrap">{message.content}</div>}
+                {message.role === "assistant" ? (
+                  <ComposerAnswer content={message.content} post={showPost ? active.post : null} />
+                ) : (
+                  <div className="whitespace-pre-wrap">{message.content}</div>
+                )}
               </div>
-            ))}
+                )
+              })}
             {pending || active?.is_generating ? (
               <div className="space-y-3">
                 <AiPipeline steps={COMPOSE_PIPELINE} />
-                <p className="text-xs text-muted-foreground">Composer is writing a private draft. This often takes one to two minutes — stay on this page.</p>
+                <p className="text-xs text-muted-foreground">Composer is writing a private draft. You can switch pages — this chat keeps generating and stores the draft when it finishes.</p>
               </div>
             ) : null}
             {notice ? (

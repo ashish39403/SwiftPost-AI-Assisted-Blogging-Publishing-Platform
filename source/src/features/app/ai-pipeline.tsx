@@ -3,10 +3,10 @@
 import { useEffect, useState } from "react"
 
 export const COMPOSE_PIPELINE = [
-  { label: "Reading the title", holdMs: 4000 },
-  { label: "Searching live images", holdMs: 14000 },
+  { label: "Reading the brief", holdMs: 4000 },
   { label: "Writing the article", holdMs: 240000 },
-  { label: "Saving a private draft", holdMs: 240000 },
+  { label: "Finding live images", holdMs: 40000 },
+  { label: "Saving a private draft", holdMs: 20000 },
 ] as const
 
 export const ANNA_PIPELINE = [

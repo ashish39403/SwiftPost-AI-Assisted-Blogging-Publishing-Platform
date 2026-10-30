@@ -49,8 +49,8 @@ The old `blog_main`, `blogs`, `dashboards`, and `assignments` packages were remo
 | Categories | Seeded editorial categories. Admin creates and edits them. Delete deactivates a category. Public lists show active categories |
 | Posts | Authors create private drafts. Public lists and detail show `published` posts only |
 | Publishing | Authors publish and unpublish their own complete drafts. Admins can unpublish any live post. AI never publishes |
-| Media | Authors attach one JPEG, PNG, or WebP featured image to an editable draft. They can also search live photos through Tavily and attach a suggestion after a server-side download |
-| Composer | Authors can create, resume, list, and archive owner-scoped chats under `/api/v1/ai/composer/conversations/`. Create/follow-up return the conversation immediately with `is_generating=true`; the UI polls `GET /conversations/{id}/` until the private draft exists. Composer never publishes |
+| Media | Authors attach JPEG, PNG, or WebP images to an editable draft (up to three; the first is featured). They can also search live photos through Tavily. Composer auto-attaches 2–3 relevant hits after a draft is written |
+| Composer | Authors can create, resume, list, and archive owner-scoped chats under `/api/v1/ai/composer/conversations/`. Create/follow-up return immediately with `is_generating=true`. Tokens are saved onto the assistant message as they arrive; the UI polls `GET /conversations/{id}/` and can leave the page without losing the draft. After the draft is saved, Composer auto-attaches 2–3 Tavily images. Composer never publishes |
 | Anna review | `POST /api/v1/ai/reviews/` reviews an owned draft and returns notes. The current frontend is a one-shot review with a loading pipeline and an explicit handoff to Composer. Anna does not publish |
 | Comments | Authenticated users comment on published posts. Comments are approved immediately and show on the public post |
 | Likes | Confirmed addition. Authenticated users can like a published post. The like toggles. Counts appear on post payloads |
@@ -181,7 +181,7 @@ Local development stores files under `media/`. Production requires `MEDIA_STORAG
 
 ### Composer
 
-`POST /api/v1/ai/compose/` is author-only. Body: `{ "title": "..." }`. Composer calls the LLM adapter and creates a private `draft`. It does not publish. After the draft is saved it may call Tavily once for live image suggestions. A Tavily failure does not fail the compose. The Next.js `/api` rewrite waits up to five minutes (`experimental.proxyTimeout`). If that POST still drops, the Composer and Anna UIs keep polling the saved conversation or review so the result appears without a full-page refresh. Illegal or harmful briefs are refused: the conversation still stores a polite no, and **no draft is created**. The model is `AI_MODEL_COMPOSE` (default `nvidia/nemotron-3-super-120b-a12b`), then `AI_MODEL`. `.env` overrides process env. GPT-5 models omit `temperature` and JSON-mode, use `max_completion_tokens`, and stay on Chat Completions (`use_responses_api=false`). NVIDIA Composer calls also skip JSON-mode and rely on the article JSON parser. The AICredits base URL is `https://api.aicredits.in/v1`.
+`POST /api/v1/ai/compose/` is author-only. Body: `{ "title": "..." }`. Composer calls the LLM adapter and creates a private `draft`. It does not publish. After the draft is saved it searches Tavily and auto-attaches 2–3 relevant live images (first is featured). A Tavily or download failure does not fail the compose. The Next.js `/api` rewrite waits up to five minutes (`experimental.proxyTimeout`). If that POST still drops, the Composer and Anna UIs keep polling the saved conversation or review so the result appears without a full-page refresh. Illegal or harmful briefs are refused: the conversation still stores a polite no, and **no draft is created**. The model is `AI_MODEL_COMPOSE` (default `nvidia/nemotron-3-super-120b-a12b`), then `AI_MODEL`. `.env` overrides process env. GPT-5 models omit `temperature` and JSON-mode, use `max_completion_tokens`, and stay on Chat Completions (`use_responses_api=false`). NVIDIA Composer calls also skip JSON-mode and rely on the article JSON parser. The AICredits base URL is `https://api.aicredits.in/v1`.
 
 ### Comments and likes
 
@@ -195,7 +195,7 @@ Local development stores files under `media/`. Production requires `MEDIA_STORAG
 
 `POST /api/v1/media/search-images/` is author-only for an owned draft. Body: `{ "post_id": 1, "query": "optional" }`. It uses the Tavily adapter and stores suggestion URLs, not image bytes.
 
-`POST /api/v1/media/suggestions/{id}/attach/` downloads that suggestion on the server, validates it as an image, and saves it as the featured image. `POST /api/v1/media/suggestions/save/` accepts `{ "ids": [1,2] }`, marks them selected, and uses the first successful download as the featured image. Private and loopback URLs are rejected.
+`POST /api/v1/media/suggestions/{id}/attach/` downloads that suggestion on the server, validates it as an image, and saves it as the featured image. `POST /api/v1/media/suggestions/save/` accepts `{ "ids": [1,2,3] }`, marks them selected, and uses the first successful download as the featured image. Private and loopback URLs are rejected.
 
 Composer success `201` includes `id`, `status`, `title_input`, and `post`. `GET /api/v1/ai/compose/{id}/` returns the same run to its owner. Another author receives `404`.
 

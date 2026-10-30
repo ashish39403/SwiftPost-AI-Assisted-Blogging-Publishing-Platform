@@ -7,11 +7,11 @@ from apps.media_assets.models import ImageSuggestion
 from apps.media_assets.services import replace_post_images, upload_featured_image
 
 
-def suggest_images_for_post(*, actor, post, query):
+def suggest_images_for_post(*, actor, post, query, limit=6, attach=False):
     cleaned = (query or post.title or "").strip()
     if not cleaned:
         return []
-    results = collect_images(cleaned)
+    results = collect_images(cleaned, limit=max(1, min(int(limit or 6), 6)))
     ImageSuggestion.objects.filter(post=post, author=actor).delete()
     created = []
     for item in results:
@@ -28,7 +28,29 @@ def suggest_images_for_post(*, actor, post, query):
                 description=(item.description or "")[:300],
             )
         )
+        if len(created) >= 3:
+            break
+    if attach:
+        attach_top_image_suggestions(actor=actor, post=post, suggestions=created)
     return created
+
+
+def attach_top_image_suggestions(*, actor, post, suggestions):
+    uploads = []
+    selected_ids = []
+    for suggestion in suggestions[:3]:
+        try:
+            uploads.append(download_image(suggestion.image_url))
+            selected_ids.append(suggestion.id)
+        except Exception:
+            continue
+    if not uploads:
+        return []
+    assets = replace_post_images(actor=actor, post=post, uploads=uploads)
+    ImageSuggestion.objects.filter(post=post, author=actor).update(selected=False)
+    if selected_ids:
+        ImageSuggestion.objects.filter(pk__in=selected_ids).update(selected=True)
+    return assets
 
 
 def search_images_for_draft(*, actor, post_id, query=""):
@@ -57,8 +79,8 @@ def attach_suggested_image(*, actor, suggestion_id):
 
 def save_suggested_images(*, actor, suggestion_ids):
     unique_ids = list(dict.fromkeys(suggestion_ids))
-    if not unique_ids or len(unique_ids) > 2:
-        raise ValidationError({"ids": "Select one or two images."})
+    if not unique_ids or len(unique_ids) > 3:
+        raise ValidationError({"ids": "Select one to three images."})
     suggestions = list(ImageSuggestion.objects.select_related("post").filter(pk__in=unique_ids, author=actor))
     if len(suggestions) != len(unique_ids):
         exc = NotFound("The requested image could not be found.")

@@ -101,8 +101,8 @@ export function FeaturedImagePanel({
     }
     setPicked((current) => {
       if (current.includes(id)) return current.filter((item) => item !== id)
-      if (current.length >= 2) {
-        onNotice("Choose up to two images for this story.")
+      if (current.length >= 3) {
+        onNotice("Choose up to three images for this story.")
         return current
       }
       return [...current, id]
@@ -140,7 +140,10 @@ export function FeaturedImagePanel({
         onNotice(await readError(response, "Those images could not be saved."))
         return
       }
-      await refresh(post.id, picked.length > 1 ? "Two images saved. The first is the featured image." : "Image saved to the draft.")
+      await refresh(
+        post.id,
+        picked.length > 1 ? `${picked.length} images saved. The first is the featured image.` : "Image saved to the draft.",
+      )
     } catch {
       onNotice("The API is not reachable.")
     } finally {
@@ -157,12 +160,27 @@ export function FeaturedImagePanel({
   return (
     <section className="rounded-2xl border bg-card p-4">
       <h2 className="font-medium">Story images</h2>
-      {post?.featured_image ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={mediaUrl(post.featured_image.url)} alt="" className="mt-3 w-full rounded-xl object-cover" />
+      {post?.images?.length ? (
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          {[...post.images]
+            .sort((left, right) => {
+              if (left.id === post.featured_image?.id) return -1
+              if (right.id === post.featured_image?.id) return 1
+              return 0
+            })
+            .map((image, index) => (
+            <div key={image.id} className={index === 0 ? "col-span-2" : ""}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={mediaUrl(image.url)} alt="" className="aspect-[16/10] w-full rounded-xl object-cover" />
+              <p className="mt-1 text-[11px] text-muted-foreground">{index === 0 ? "Featured" : `Photo ${index + 1}`}</p>
+            </div>
+          ))}
+        </div>
       ) : (
         <p className="mt-2 text-xs leading-5 text-muted-foreground">
-          {post ? "Composer finds images for every request. Select up to two, then save them to this draft." : "Composer creates the draft first, then relevant images appear here."}
+          {post
+            ? "Composer attaches two or three live photos after it finishes writing. You can still search or upload replacements here."
+            : "Composer creates the draft first, then relevant live photos appear here."}
         </p>
       )}
       <input

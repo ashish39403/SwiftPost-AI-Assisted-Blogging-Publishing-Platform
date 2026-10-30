@@ -388,7 +388,7 @@ PostgreSQL stores the media asset metadata and the object key. The backend valid
 
 ### Composer (V1, live)
 
-Composer is a separate Django module from Anna. The author starts a conversation with a title or brief. Composer calls the shared LLM adapter (`AI_MODEL_COMPOSE` / Nemotron), writes or refines a complete private draft, and stores provenance. After a draft exists it may request Tavily image suggestions. It does not publish. The author opens the draft in the editor or Stories and publishes themselves.
+Composer is a separate Django module from Anna. The author starts a conversation with a title or brief. Composer calls the shared LLM adapter (`AI_MODEL_COMPOSE` / Nemotron), writes or refines a detailed private draft, and stores provenance. After a draft exists it searches Tavily and auto-attaches 2–3 relevant live images. It does not publish. The author opens the draft in the editor or Stories and publishes themselves.
 
 ## 10.1 Anna AI architecture
 
@@ -436,7 +436,7 @@ If LangChain is not needed for a particular operation, a direct provider adapter
 
 ## 12. Live web research and Tavily integration
 
-**V1:** Tavily is used for **live featured-image search** after a Composer draft exists (`SearchProvider`). That is not Anna research.
+**V1:** Tavily is used for **live featured-image search** after a Composer draft exists (`SearchProvider`). Composer auto-attaches 2–3 relevant hits. That is not Anna research.
 
 **V2:** Anna live-web research, persisted research jobs, and source collections are not built. The research sequence below is the target for V2 only. Do not implement it unless asked.
 
@@ -542,7 +542,7 @@ Do not add `/api/v1/ai/jobs/` or Anna research-job polling in V1.
 - **Categories:** public reads and admin mutations.
 - **Comments:** create, list approved comments; post author or admin can approve.
 - **Likes:** toggle a like on a published post.
-- **Media:** upload, Tavily live-image suggestions, multi-select save.
+- **Media:** upload, Tavily live-image suggestions, Composer auto-attach of 2–3 images, multi-select save.
 - **Publishing:** owning author or admin publish/unpublish; archive from non-published.
 - **Composer conversations:** create, list, continue, archive. Writes a private draft.
 - **Anna review:** one-shot notes on an owned draft.

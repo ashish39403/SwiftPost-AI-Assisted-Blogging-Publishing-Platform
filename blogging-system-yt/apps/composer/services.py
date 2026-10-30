@@ -27,7 +27,7 @@ _STREAM_FLUSH_SECONDS = 0.45
 def compose_from_title(*, actor, title, llm=None, conversation=None):
     run = _start_compose_run(actor=actor, title=title, conversation=conversation)
     _execute_compose_run(run.id, llm=llm)
-    return ComposeRun.objects.select_related("post").prefetch_related("post__image_suggestions").get(pk=run.id)
+    return ComposeRun.objects.select_related("post").prefetch_related("post__image_suggestions", "post__images").get(pk=run.id)
 
 
 def start_conversation_compose(*, actor, title, conversation=None):
@@ -68,7 +68,7 @@ def list_conversations(*, actor, include_archived=False):
     queryset = Conversation.objects.filter(author=actor).select_related("post")
     if not include_archived:
         queryset = queryset.filter(status=ConversationStatus.ACTIVE)
-    conversations = list(queryset.prefetch_related("messages", "post__image_suggestions", "compose_runs"))
+    conversations = list(queryset.prefetch_related("messages", "post__image_suggestions", "post__images", "compose_runs"))
     for conversation in conversations:
         _fail_stale_runs(conversation)
     return conversations
@@ -76,7 +76,7 @@ def list_conversations(*, actor, include_archived=False):
 
 def owned_conversation(*, actor, conversation_id):
     try:
-        conversation = Conversation.objects.select_related("post").prefetch_related("messages", "post__image_suggestions", "compose_runs").get(
+        conversation = Conversation.objects.select_related("post").prefetch_related("messages", "post__image_suggestions", "post__images", "compose_runs").get(
             pk=conversation_id, author=actor
         )
         _fail_stale_runs(conversation)
@@ -228,12 +228,13 @@ def _execute_compose_run(run_id, llm=None):
                 )
                 conversation.post = post
                 conversation.save(update_fields=["post", "updated_at"])
-            _finish_run(run, article, model_name=_model_name(provider, request), post=post)
         if post:
             try:
-                suggest_images_for_post(actor=actor, post=post, query=article["title"] or prompt)
+                image_query = " ".join(part for part in (article["title"], (article.get("excerpt") or "")[:80]) if part).strip() or prompt
+                suggest_images_for_post(actor=actor, post=post, query=image_query, limit=3, attach=True)
             except Exception:
                 pass
+        _finish_run(run, article, model_name=_model_name(provider, request), post=post)
     except (ProviderNotConfigured, ProviderUnavailable, ValidationError) as exc:
         _keep_or_drop_assistant(assistant.pk, collected)
         _fail(run, exc)

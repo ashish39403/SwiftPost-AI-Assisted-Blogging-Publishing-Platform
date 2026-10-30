@@ -17,7 +17,7 @@ Confirmed in code:
 - Admins can **unpublish any live post**, manage categories, and disable users in Django admin.
 - **AI never publishes.** Save, Composer, and Anna leave the post as `draft`.
 - Composer uses `AI_MODEL_COMPOSE` (default `nvidia/nemotron-3-super-120b-a12b`). Anna review uses `AI_MODEL_REVIEW` (default `openai/gpt-5.5`).
-- Composer browser UI is a conversation that creates/refines a private draft, with live image suggestions on the right.
+- Composer browser UI is a conversation that creates/refines a private draft, renders it as an article, and auto-attaches 2–3 Tavily images.
 - Anna browser UI is a **one-shot draft review** with a loading pipeline. Do not add a new Anna chat UI unless the user asks.
 - Anna live research, Celery, Redis workers, retries, and job polling are **V2**. Do not add them unless asked.
 - Public pages show only `published` posts. Cross-author private access returns a safe 404.
@@ -58,7 +58,7 @@ The old `blog_main`, `dashboards`, `assignments`, and server-rendered templates 
 - Register/login/logout/`/me`, session security.
 - Author drafts, editor, Stories list, publish/unpublish, archive.
 - Comments and likes on published posts. Any signed-in user can comment; comments are public immediately.
-- Featured image upload and Tavily live-image suggestions (multi-select save).
+- Featured image upload and Tavily live-image suggestions (Composer auto-attaches 2–3; authors can still multi-select save).
 - Composer conversations → private draft. Anna one-shot review.
 - DRF under `/api/v1/`.
 
@@ -129,7 +129,7 @@ draft / in_review / changes_requested / unpublished → archived
 
 ## Anna and Composer
 
-Composer may create and refine a private draft from a title or follow-up. It may request Tavily image suggestions after a draft exists. It must not publish.
+Composer may create and refine a detailed private draft from a title or follow-up. After the draft exists it searches Tavily and auto-attaches 2–3 relevant live images. It must not publish.
 
 Anna may review an owned draft and return notes. She must not publish, rewrite the live post silently, or read another author's draft.
 
@@ -139,7 +139,7 @@ LangChain stays behind the LLM adapter. Tavily stays behind the search adapter. 
 
 - Local files in development; S3-compatible storage in production.
 - Validate MIME, extension, size, dimensions. Server-controlled keys.
-- One featured image per post. Extra Tavily hits can be marked selected and saved; the first selected becomes featured.
+- One featured image per post plus up to two extra story images (three total). Composer auto-attaches 2–3 Tavily hits; the first becomes featured. Authors can still search, upload, or replace them.
 
 ## Security
 

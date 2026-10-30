@@ -26,7 +26,7 @@ class MediaAsset(models.Model):
         return self.original_filename
 
     class Meta:
-        ordering = ["is_featured", "created_at", "id"]
+        ordering = ["-is_featured", "created_at", "id"]
 
 
 class ImageSuggestion(models.Model):

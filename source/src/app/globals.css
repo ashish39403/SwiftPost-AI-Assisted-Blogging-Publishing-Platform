@@ -207,6 +207,88 @@ body {
   }
 }
 
+.composer-article {
+  color: var(--foreground);
+}
+
+.composer-article h1 {
+  font-family: var(--font-heading);
+  font-size: clamp(1.7rem, 2.4vw, 2.35rem);
+  line-height: 1.15;
+  letter-spacing: -0.03em;
+  text-wrap: balance;
+}
+
+.composer-lead {
+  margin-top: 0.9rem;
+  font-size: 1.05rem;
+  line-height: 1.7;
+  color: var(--muted-foreground);
+}
+
+.composer-hero,
+.composer-inline,
+.composer-gallery figure {
+  overflow: hidden;
+  border-radius: 1.15rem;
+  background: var(--muted);
+}
+
+.composer-hero {
+  margin-top: 1.35rem;
+}
+
+.composer-hero img,
+.composer-inline img,
+.composer-gallery img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+}
+
+.composer-article h2 {
+  margin-top: 1.85rem;
+  font-family: var(--font-heading);
+  font-size: 1.28rem;
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+}
+
+.composer-article p {
+  margin-top: 0.9rem;
+  font-size: 1.02rem;
+  line-height: 1.8;
+}
+
+.composer-article ul {
+  margin-top: 0.85rem;
+  padding-left: 1.15rem;
+  display: grid;
+  gap: 0.4rem;
+}
+
+.composer-article li {
+  font-size: 1.02rem;
+  line-height: 1.7;
+}
+
+.composer-inline {
+  margin-top: 1.35rem;
+}
+
+.composer-gallery {
+  margin-top: 1.5rem;
+  display: grid;
+  gap: 0.75rem;
+}
+
+@media (min-width: 640px) {
+  .composer-gallery {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 .reveal-armed:not([data-visible]) {
   opacity: 0;
   transform: translateY(10px);

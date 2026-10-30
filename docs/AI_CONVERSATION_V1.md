@@ -6,7 +6,7 @@
 
 ## Decision summary
 
-V1 Composer is a durable, author-owned conversation that creates and refines a **private draft**. Follow-ups update that draft. Images can be suggested with Tavily and saved from the right-hand panel.
+V1 Composer is a durable, author-owned conversation that creates and refines a **private draft**. Follow-ups update that draft. After the draft is written, Composer auto-attaches 2–3 relevant Tavily images. The author can still search or replace them from the right-hand panel.
 
 V1 Anna in the **browser** is a one-shot review: pick an owned draft, wait through the pipeline, read notes. Django still has `/api/v1/ai/anna/conversations/` from an earlier slice. Do **not** rebuild an Anna chat sidebar unless the user asks.
 
@@ -15,7 +15,7 @@ V1 does **not** add Anna live-web research, source collection, Celery, Redis, re
 ## Composer journey (current)
 
 1. Author opens `/compose` and sees only their Composer conversations.
-2. Author starts with a title or brief. The server stores the chat immediately, then writes a private draft in the background. The Composer page polls that chat until the draft appears.
+2. Author starts with a title or brief. The server stores the chat immediately and streams the article into a saved assistant message. The Composer page polls that chat and presents the draft as a formatted blog with 2–3 live photos. Leaving the page does not cancel the run.
 3. Follow-ups refine the same draft. History survives refresh.
 4. Author opens the draft in `/editor/{id}` or **Stories**, then publishes themselves. Composer never publishes.
 

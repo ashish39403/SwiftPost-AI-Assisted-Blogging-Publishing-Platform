@@ -260,3 +260,37 @@ class FeaturedImageTests(TestCase):
         self.assertEqual(len(draft["images"]), 2)
         self.assertTrue(draft["featured_image"])
         self.assertEqual(ImageSuggestion.objects.filter(post_id=self.post_id, selected=True).count(), 2)
+
+    def test_author_can_save_three_suggested_images_to_one_draft(self):
+        from unittest.mock import patch
+
+        from apps.media_assets.models import ImageSuggestion
+
+        suggestions = [
+            ImageSuggestion.objects.create(
+                post_id=self.post_id,
+                author=self.author,
+                image_url=f"https://cdn.example.com/{name}.png",
+            )
+            for name in ("first", "second", "third")
+        ]
+        png = image_file().read()
+
+        class FakeResponse:
+            status_code = 200
+            content = png
+            headers = {"content-type": "image/png"}
+
+        with patch("apps.media_assets.fetch.public_http_url", side_effect=lambda url: url):
+            with patch("apps.media_assets.fetch.httpx.get", return_value=FakeResponse()):
+                saved = self.author_client.post(
+                    "/api/v1/media/suggestions/save/",
+                    {"ids": [item.id for item in suggestions]},
+                    format="json",
+                )
+
+        self.assertEqual(saved.status_code, 200)
+        self.assertEqual(len(saved.json()["images"]), 3)
+        draft = self.author_client.get(f"/api/v1/drafts/{self.post_id}/").json()
+        self.assertEqual(len(draft["images"]), 3)
+        self.assertTrue(draft["featured_image"])

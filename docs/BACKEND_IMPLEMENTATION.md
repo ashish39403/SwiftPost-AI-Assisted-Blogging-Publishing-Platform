@@ -10,7 +10,7 @@
 **Background work:** Deferred to V2; V1 AI conversation requests are synchronous and bounded
 **Date:** 30 October 2026
 
-> **30 October 2026 implementation status:** The Django API and Next.js workspace are a writer platform. Registration creates `author`. Authors publish and unpublish their own complete posts; admins can unpublish any live post. Composer conversations create/refine private drafts (Nemotron) with optional Tavily images. Anna's live UI is one-shot review (`POST /api/v1/ai/reviews/`); conversation APIs exist but the chat sidebar was removed by product request. Do not introduce Celery, Redis, research jobs, retries, polling, or Anna live research unless asked. Full in-app user-management remains planned. See `docs/AI_CONVERSATION_V1.md` and `docs/BACKEND_STATUS.md`.
+> **30 October 2026 implementation status:** The Django API and Next.js workspace are a writer platform. Registration creates `author`. Authors publish and unpublish their own complete posts; admins can unpublish any live post. Composer conversations create/refine private drafts (Nemotron) and auto-attach 2–3 Tavily images. Anna's live UI is one-shot review (`POST /api/v1/ai/reviews/`); conversation APIs exist but the chat sidebar was removed by product request. Do not introduce Celery, Redis, research jobs, retries, polling, or Anna live research unless asked. Full in-app user-management remains planned. See `docs/AI_CONVERSATION_V1.md` and `docs/BACKEND_STATUS.md`.
 
 ---
 
@@ -57,7 +57,7 @@ The backend under `blogging-system-yt/` **is already** the DRF modular monolith.
 - Apps: `accounts`, `users`, `blogs`, `categories`, `comments`, `publishing`, `moderation`, `media_assets`, `composer`, `anna`, `common`.
 - `/api/v1/` session+CSRF JSON API, consistent error envelope.
 - SQLite locally; PostgreSQL when `DATABASE_URL` is set.
-- Composer conversations + title-to-draft; Anna review; Tavily image suggestions.
+- Composer conversations + title-to-draft; Anna review; Tavily image auto-attach (2–3).
 - Seeded editorial categories.
 
 ### Remaining gaps (do not treat as a greenfield rebuild)
@@ -174,7 +174,7 @@ Owns upload validation, storage adapter interaction, asset metadata, replacement
 
 ### Composer
 
-Owns title/conversation draft generation. It calls the shared LLM adapter, creates or updates a private `draft` through `blogs.services`, and stores a provenance snapshot. After a draft exists it may request Tavily image suggestions. It must not call publishing transitions.
+Owns title/conversation draft generation. It calls the shared LLM adapter, creates or updates a private `draft` through `blogs.services`, and stores a provenance snapshot. After a draft exists it searches Tavily and auto-attaches 2–3 relevant live images. It must not call publishing transitions.
 
 ### Anna
 
@@ -589,7 +589,7 @@ GET    /api/v1/ai/composer/conversations/
 POST   /api/v1/ai/composer/conversations/
 ```
 
-Composer conversations create or refine a private draft. A successful compose is not a publish. Image suggestions may follow the draft.
+Composer conversations create or refine a detailed private draft. A successful compose is not a publish. After the draft is saved, Composer auto-attaches 2–3 Tavily images.
 
 ### Anna endpoints (V1 live UI)
 

@@ -41,8 +41,8 @@ def upload_featured_image(*, actor, post, upload):
 
 def upload_post_image(*, actor, post, upload, is_featured=False):
     _require_author_edit(post, actor)
-    if not is_featured and post.images.count() >= 2:
-        raise ValidationError({"images": "A story can have up to two images."})
+    if not is_featured and post.images.count() >= 3:
+        raise ValidationError({"images": "A story can have up to three images."})
     content, content_type, extension, width, height = _validated_image(upload)
     key = f"uploads/{uuid.uuid4().hex}.{extension}"
     storage = get_storage()
@@ -143,10 +143,10 @@ def _display_name(name):
 
 
 def replace_post_images(*, actor, post, uploads):
-    """Replace a draft's image set with one or two validated uploads."""
+    """Replace a draft's image set with one to three validated uploads."""
     _require_author_edit(post, actor)
-    if not uploads or len(uploads) > 2:
-        raise ValidationError({"images": "Select one or two images."})
+    if not uploads or len(uploads) > 3:
+        raise ValidationError({"images": "Select one to three images."})
     old_assets = list(post.images.all())
     old_keys = [asset.storage_key for asset in old_assets]
     for asset in old_assets:

@@ -6,7 +6,7 @@
 **Date:** 30 October 2026  
 **Release target:** First production-ready rebuild  
 
-> **Implementation note, 30 October 2026:** Signup creates an author. Authors publish and unpublish their own complete posts. Admins can unpublish any live post. Composer conversations create and refine private drafts (Nemotron) with optional Tavily image suggestions. Anna's current UI is a one-shot draft review with a loading pipeline, not a chat sidebar. Anna live research, Celery, and Redis remain V2. AI never publishes.  
+> **Implementation note, 30 October 2026:** Signup creates an author. Authors publish and unpublish their own complete posts. Admins can unpublish any live post. Composer conversations create and refine private drafts (Nemotron) and auto-attach 2–3 Tavily images. Anna's current UI is a one-shot draft review with a loading pipeline, not a chat sidebar. Anna live research, Celery, and Redis remain V2. AI never publishes.  
 
 ---
 
@@ -124,9 +124,9 @@ Authentication proves who the user is. Authorization determines what that user c
 
 1. Author opens Composer from the workspace navbar.
 2. Author selects an existing Composer chat or creates a new one from a title or writing request.
-3. Composer stores the author message and writes a complete private draft: title, excerpt, and body.
+3. Composer stores the author message and writes a complete, detailed private blog: title, excerpt, and body.
 4. The author can continue the same chat with refinement requests and reopen it after refresh or a later sign-in.
-5. The result stays in `draft`. Featured-image suggestions may appear beside the draft. It is not published.
+5. The result stays in `draft`. Composer auto-attaches 2–3 relevant Tavily images (first is featured). The author can still search or replace them. It is not published.
 6. Author opens the draft from **Stories** or **Open in editor**, or sends it to Anna for a review pass.
 7. Author remains responsible for editing and clicking **Publish**.
 
@@ -222,7 +222,7 @@ The system must:
 - Avoid serving executable content from upload locations.
 - Show a useful upload error without losing unrelated draft fields.
 - Define replacement and deletion behavior for images associated with posts.
-- Authors may search live images through the Tavily adapter and attach a reviewed suggestion as the featured image. The system does not auto-attach images.
+- Authors may search live images through the Tavily adapter and attach reviewed suggestions. A post can have up to three images; the first is featured. Composer auto-attaches 2–3 relevant live images after a draft is written; the author can still replace them.
 
 Exact limits are an engineering decision to be confirmed before implementation; they must be documented and tested.
 
@@ -247,15 +247,15 @@ Admin pages and endpoints must be protected at the server boundary, not only hid
 
 **Confirmed decision:** Composer is a separate assistant from Anna.
 
-Composer exists so an author can type a title (or a short writing request) in the navbar workspace and receive a complete private blog draft. Follow-up messages can refine that draft. Composer does not publish.
+Composer exists so an author can type a title (or a short writing request) in the navbar workspace and receive a detailed private blog draft. Follow-up messages can refine that draft. Composer does not publish.
 
 Composer must:
 
 - Accept a title or first message from an authenticated author.
-- Generate excerpt and body through the internal LLM adapter (`AI_MODEL_COMPOSE`).
+- Generate a long-form excerpt and body through the internal LLM adapter (`AI_MODEL_COMPOSE`).
 - Save the result as a normal private `draft` owned by that author.
 - Keep a provenance / conversation record of the generated snapshot.
-- Optionally request Tavily **image suggestions** after the draft exists; the author chooses what to save.
+- After the draft exists, search Tavily and auto-attach 2–3 relevant live images; the first is featured. The author can still search, upload, or replace them.
 - Never change public publishing state.
 - Offer a clear next step to open the editor or send the draft to Anna for review.
 

@@ -89,14 +89,23 @@ class ComposeApiTests(TestCase):
                 {"title": "A usable title"},
                 format="json",
             )
-        self.assertEqual(response.status_code, 400)
-        self.assertEqual(Post.objects.count(), 0)
-        self.assertEqual(ComposeRun.objects.get().status, JobStatus.FAILED)
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(Post.objects.count(), 1)
+        self.assertEqual(Post.objects.get().status, PostStatus.DRAFT)
+        self.assertIn("this is not json", Post.objects.get().body)
+        self.assertEqual(ComposeRun.objects.get().status, JobStatus.SUCCEEDED)
 
     def test_parser_reads_json_hidden_in_prose(self):
         article = parse_article('Sure.\n{"title": "A", "excerpt": "B", "body": "C"}\nThanks.')
         self.assertEqual(article["title"], "A")
         self.assertEqual(article["body"], "C")
+        self.assertFalse(article["refused"])
+
+    def test_parser_reads_plain_title_excerpt_body(self):
+        article = parse_article("TITLE: Coastal cities\nEXCERPT: Water is rising.\nBODY:\nFirst paragraph.\n\nSecond paragraph.")
+        self.assertEqual(article["title"], "Coastal cities")
+        self.assertEqual(article["excerpt"], "Water is rising.")
+        self.assertIn("First paragraph", article["body"])
         self.assertFalse(article["refused"])
 
     def test_illegal_brief_is_refused_without_creating_a_draft(self):
@@ -195,6 +204,8 @@ class ComposeApiTests(TestCase):
         self.assertEqual(created.status_code, 201)
         self.assertEqual(continued.status_code, 200)
         self.assertEqual(suggest.call_count, 2)
+        self.assertTrue(all(call.kwargs.get("attach") for call in suggest.call_args_list))
+        self.assertTrue(all(call.kwargs.get("limit") == 3 for call in suggest.call_args_list))
 
     def test_conversation_create_can_return_before_the_model_finishes(self):
         article = {"title": "A", "excerpt": "B", "body": "Body."}
@@ -216,3 +227,47 @@ class ComposeApiTests(TestCase):
         self.assertEqual(conversation["messages"][0]["role"], "user")
         self.assertEqual(schedule.call_count, 1)
         self.assertEqual(len(fake.calls), 0)
+
+    def test_composer_auto_attaches_two_to_three_live_images(self):
+        import tempfile
+        from io import BytesIO
+
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        from django.test import override_settings
+        from PIL import Image
+
+        from apps.anna.interfaces.search import ImageResult
+
+        def png(name):
+            buffer = BytesIO()
+            Image.new("RGB", (12, 8), "red").save(buffer, format="PNG")
+            return SimpleUploadedFile(name, buffer.getvalue(), content_type="image/png")
+
+        hits = [
+            ImageResult(url="https://cdn.example.com/a.png", description="A city", page_url=""),
+            ImageResult(url="https://cdn.example.com/b.png", description="A street", page_url=""),
+            ImageResult(url="https://cdn.example.com/c.png", description="A park", page_url=""),
+        ]
+        article = {"title": "Resilient Cities", "excerpt": "Streets that hold water after rain.", "body": "Body text."}
+        fake = FakeLLM(json.dumps(article))
+        media = tempfile.TemporaryDirectory()
+        try:
+            with override_settings(MEDIA_ROOT=media.name):
+                with patch("apps.composer.services.get_llm_provider", return_value=fake):
+                    with patch("apps.media_assets.image_search.collect_images", return_value=hits):
+                        with patch(
+                            "apps.media_assets.image_search.download_image",
+                            side_effect=lambda url: png(url.rsplit("/", 1)[-1]),
+                        ):
+                            created = self.author_client.post(
+                                "/api/v1/ai/composer/conversations/",
+                                {"message": "Write about resilient cities"},
+                                format="json",
+                            )
+            self.assertEqual(created.status_code, 201)
+            post = created.json()["conversation"]["post"]
+            self.assertEqual(len(post["images"]), 3)
+            self.assertTrue(post["featured_image"])
+            self.assertEqual(len(created.json()["conversation"]["suggested_images"]), 3)
+        finally:
+            media.cleanup()

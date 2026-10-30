@@ -5,7 +5,7 @@ COMPOSE_SYSTEM = (
     "(avoid In today's world, In this article, Delve, Landscape, Moreover). "
     "Reply in this exact plain-text shape, nothing else:\n"
     "TITLE: <headline>\n"
-    "EXCERPT: <2-3 sentences>\n"
+    "EXCERPT: <3-4 sentences>\n"
     "BODY:\n"
     "<the article>\n"
     "body is plain text only: short headings on their own lines, paragraphs separated by blank lines, "
@@ -20,15 +20,17 @@ COMPOSE_SYSTEM = (
 
 def compose_user_prompt(title):
     return (
-        "Write a complete private feature from this brief. Keep the title close to the author's wording.\n\n"
+        "Write a complete, detailed private blog post from this brief. Keep the title close to the author's wording.\n\n"
         "Shape:\n"
-        "- EXCERPT: 2-3 sentences. Hook, then why it matters now.\n"
-        "- BODY: 800-1200 words, 5-7 short headings, 2-3 paragraphs per section.\n"
-        "- Opening: start in a scene, a number, or a tension. Never a dictionary definition.\n"
-        "- Middle: how it works, one lived example, one tradeoff.\n"
-        "- Close: one practical takeaway, then a short last paragraph.\n"
-        "- Headings are short Title Case phrases, never the same as the title.\n"
-        "- If the brief is illegal or harmful, refuse as instructed. Otherwise write the article.\n\n"
+        "- EXCERPT: 3-4 sentences. Hook, the argument, then why it matters now.\n"
+        "- BODY: 1400-2000 words, 7-10 short headings, 2-4 paragraphs per section.\n"
+        "- Opening: 2-3 paragraphs. Start in a scene, a number, or a tension. Never a dictionary definition.\n"
+        "- Middle: context, how it works, lived examples, tradeoffs, what people miss, and a practical section.\n"
+        "- Close: 2 concrete takeaways, then a short hopeful last paragraph.\n"
+        "- Use '-' bullets only when a list is clearer than prose.\n"
+        "- Headings are short Title Case phrases, never the same as the title, each on its own line.\n"
+        "- Prefer specific places, jobs, objects, and constraints over vague claims.\n"
+        "- If the brief is illegal or harmful, refuse as instructed. Otherwise write the full article.\n\n"
         f"Brief:\n{title}"
     )
 

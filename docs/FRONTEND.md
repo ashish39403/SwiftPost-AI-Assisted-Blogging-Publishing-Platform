@@ -8,7 +8,7 @@ The SwiftPost frontend is a Next.js application for the public publication exper
 - Session-aware sign-up and sign-in flows.
 - An author workspace: Overview, **Stories**, published desk, editor, Composer, Anna, admin, and settings.
 - Signup creates a writer. Authors publish and unpublish their own complete posts from the editor.
-- Composer conversations: a title creates a private draft (Nemotron), later messages refine it, images show on the right and can be multi-selected. Composer does not publish.
+- Composer conversations: a title creates a detailed private draft (Nemotron), later messages refine it, and 2–3 live photos are attached automatically. The article is rendered in the chat. Composer does not publish.
 - Draft editing, seeded categories, featured-image upload or live-image selection.
 - Anna one-shot draft review with a loading pipeline. Anna never publishes. There is no Anna chat sidebar.
 - Workspace search, notifications affordance, and account-menu navigation.
