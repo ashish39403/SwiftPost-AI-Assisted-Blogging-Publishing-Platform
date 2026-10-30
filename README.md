@@ -1,19 +1,24 @@
 # SwiftPost
 
-**SwiftPost** is a secure, role-based **writer platform**. It consists of a **Django 5.2 + Django REST Framework** modular monolith backend (`blogging-system-yt/`) and a **Next.js 16 / React 19 / TypeScript** frontend (`source/`).
+**SwiftPost** is a secure, role-based **writer platform**: a **Django 5.2 + Django REST Framework** modular monolith (`blogging-system-yt/`) and a **Next.js 16 / React 19 / TypeScript** frontend (`source/`).
 
-Anyone who registers becomes an **author**. Authors write private drafts, review them with **Anna**, refine them with **Composer**, and click **Publish** themselves. **AI never publishes.** Admins can unpublish any live post and manage categories and users through Django admin.
+Signup creates an **author**. Authors write private drafts, review them with **Anna**, refine them with **Composer**, and click **Publish** themselves. **AI never publishes.** Admins can unpublish any live post and manage categories and users through Django admin.
+
+[![Backend: Django 5.2 + DRF](https://img.shields.io/badge/backend-Django%205.2%20%2B%20DRF-blue)](blogging-system-yt/)
+[![Frontend: Next.js 16](https://img.shields.io/badge/frontend-Next.js%2016-black)](source/)
+[![Auth: Session + CSRF](https://img.shields.io/badge/auth-Session%20%2B%20CSRF-green)](blogging-system-yt/config/settings/)
+[![Database: SQLite dev / PostgreSQL prod](https://img.shields.io/badge/db-SQLite%20%7C%20PostgreSQL-orange)](blogging-system-yt/)
 
 ---
 
 ## Table of contents
 
-- [Product overview](#product-overview)
+- [What SwiftPost is](#what-swiftpost-is)
 - [Repository structure](#repository-structure)
 - [Architecture](#architecture)
 - [Tech stack](#tech-stack)
 - [Prerequisites](#prerequisites)
-- [Quick start — local development](#quick-start--local-development)
+- [Quick start (local development)](#quick-start-local-development)
 - [Environment variables](#environment-variables)
 - [Running with Docker services](#running-with-docker-services)
 - [API overview](#api-overview)
@@ -22,15 +27,14 @@ Anyone who registers becomes an **author**. Authors write private drafts, review
 - [Production deployment](#production-deployment)
 - [Production deployment checklist](#production-deployment-checklist)
 - [Security](#security)
-- [Known issues](#known-issues)
 - [Contributing](#contributing)
 - [License](#license)
 
 ---
 
-## Product overview
+## What SwiftPost is
 
-SwiftPost is a **single-platform, non-multi-tenant** publishing product for writers. It is not a magazine queue, not microservices, and not reader-side AI.
+SwiftPost is a **single-platform, non-multi-tenant** publishing product for writers.
 
 | Capability | Who | Behavior |
 |---|---|---|
@@ -39,56 +43,56 @@ SwiftPost is a **single-platform, non-multi-tenant** publishing product for writ
 | Author drafts | Author | Create, edit, save, unpublish, archive own drafts/posts (private) |
 | Publish / unpublish | Author (own) or Admin (any) | Explicit action; creates a `PublishingEvent` audit row |
 | Composer (AI writing) | Author | Conversation → private draft (Nemotron); optional Tavily image suggestions; never publishes |
-| Anna review (AI) | Author | One-shot draft review (GPT-5.5); verdict / strengths / gaps / edits; never publishes |
-| Comments + likes | Any signed-in user | Comment on published posts (public immediately); like toggle; author/admin moderate |
-| Media | Author | Featured image upload with MIME / size / dimension validation; server-controlled keys |
+| Anna review (AI) | Author | One-shot draft review (GPT-5.5); returns verdict/strengths/gaps/edits; never publishes |
+| Comments + likes | Authenticated users | Comment on published posts (live immediately); like toggle |
+| Media | Author | Featured image upload with MIME/size/dimension validation; server-controlled keys |
 
-### Trust boundaries (non-negotiable)
+### Key trust boundaries
 
 - **AI never publishes.** Save, Composer, and Anna all leave the post as `draft`. Only an explicit, authorized publish transition makes content public.
 - **Ownership is server-enforced.** An author cannot read, edit, publish, or use another author's private draft, post, conversation, source, or artifact — even via a direct API call with a guessed ID.
-- **The browser is not the security boundary.** Django enforces authentication, role, object ownership, object status, and transition validity on every sensitive request. UI hiding is never a security control.
+- **The browser is not the security boundary.** Django enforces auth, role, ownership, object status, and transition validity on every sensitive request.
 
 ---
 
 ## Repository structure
 
 ```
-H:\Blog_Webapp
-├── .gitignore              # Python + Node + OS + secrets (never commit .env / db.sqlite3 / media)
-├── .env.example            # Variable names + safe placeholders only (copy to .env / .env.local)
-├── README.md               # This file
-├── SECURITY.md             # Security policy, production checklist, vulnerability reporting
-├── CONTRIBUTING.md         # Contribution conventions and required checks
-├── SWIFTPOST_REBUILD_PRD.md # Product requirements & acceptance criteria
-├── BACKEND_IMPLEMENTATION.md # Backend implementation plan (phases 1–5 delivered)
-├── docs/
+H:\Blog_Webapp                 # One git repository (this root)
+├── README.md                  # Short landing; this file is the full README
+├── AGENTS.md                  # Pointer to docs/AGENTS.md
+├── .gitignore
+├── .env.example               # Combined names + placeholders
+├── docs/                      # All project markdown
+│   ├── README.md              # This file
+│   ├── AGENTS.md
+│   ├── CONTRIBUTING.md
+│   ├── SECURITY.md
 │   ├── SWIFTPOST_REBUILD_PRD.md
+│   ├── BACKEND_IMPLEMENTATION.md
+│   ├── BACKEND_STATUS.md      # Live API contract
+│   ├── TECH_STACK.md
+│   ├── BACKEND.md
+│   ├── FRONTEND.md
 │   └── AI_CONVERSATION_V1.md
-├── bugs.md                 # Known bugs and issue register
-├── E2E_ARCHITECTURE.md     # End-to-end architecture & test matrix
-├── report.md               # RBAC and flow verification report
-├── cookies.txt             # Local curl cookie file — session data, never commit
-├── blogging-system-yt/     # Django backend (separate git repo, branch: main)
-│   ├── config/             # Settings (base/local/production), URLs, WSGI/ASGI
-│   ├── apps/               # accounts, users, blogs, categories, comments,
-│   │                        publishing, moderation, media_assets, composer, anna, common
-│   ├── tests/              # integration + security tests
-│   ├── requirements.txt    # Python dependencies
-│   ├── docker-compose.yml  # PostgreSQL 16 + Redis 7 (services only)
+├── blogging-system-yt/        # Django 5.2 + DRF API
+│   ├── config/
+│   ├── apps/                  # accounts, users, blogs, categories, comments,
+│   │                           publishing, moderation, media_assets, composer, anna, common
+│   ├── tests/
+│   ├── requirements.txt
+│   ├── docker-compose.yml     # Optional PostgreSQL 16 + Redis 7
 │   ├── manage.py
-│   ├── .env                # LOCAL ONLY — real keys, gitignored, never commit
-│   ├── .env.example        # Backend env template
-│   └── db.sqlite3          # Local dev DB — gitignored
-└── source/                 # Next.js frontend (separate git repo, branch: master)
-    ├── src/                # App Router, features, components, lib
-    ├── package.json        # Node dependencies
-    ├── next.config.ts      # API/media rewrite proxy to Django :8000
-    ├── .env.local          # LOCAL ONLY — gitignored
-    └── .gitignore          # Node + Next.js ignores
+│   └── .env.example
+└── source/                    # Next.js frontend
+    ├── src/
+    ├── public/landing/
+    ├── package.json
+    ├── next.config.ts
+    └── .env.example
 ```
 
-> **Repository note:** `blogging-system-yt/` and `source/` are currently independent git repositories. For a single GitHub push, either push them as two repositories (matching their existing git history) or consolidate into one monorepo at this root. Do not commit `.env`, `.env.local`, `db.sqlite3`, or `media/`.
+Local `.env`, `.env.local`, SQLite, `venv` / `.venv`, `node_modules`, `.next`, and uploaded media stay on disk and are gitignored. Do not commit them.
 
 ---
 
@@ -156,7 +160,7 @@ draft / in_review / changes_requested / unpublished ───► archived
 
 ---
 
-## Quick start — local development
+## Quick start (local development)
 
 ### 1. Backend (Django)
 
@@ -244,7 +248,7 @@ Composer and Anna run **inline** in V1. Do not start Celery unless you are worki
 | `NEXT_PUBLIC_SITE_URL` | Public site URL | `http://localhost:3000` |
 | `NEXT_PUBLIC_API_URL` | Backend API URL (empty in dev → proxy) | (empty) |
 
-> Only `NEXT_PUBLIC_*` variables are exposed to the browser. Provider secrets and `DJANGO_SECRET_KEY` must remain backend-only. Never commit real values.
+> Only `NEXT_PUBLIC_*` variables are exposed to the browser. Provider secrets and `DJANGO_SECRET_KEY` must remain backend-only.
 
 ---
 
@@ -329,7 +333,7 @@ python manage.py makemigrations --check
 python manage.py test
 ```
 
-Verified slice: `apps.comments apps.media_assets apps.composer apps.anna apps.blogs` — 17 passed. Full suite: 51 tests, all passed. Live Tavily/LLM calls stay mocked in tests unless `ANNA_LIVE_PROVIDER_TEST=1`.
+Verified slice: `apps.comments apps.media_assets apps.composer apps.anna apps.blogs` — 17 passed. Live Tavily/LLM calls stay mocked in tests unless `ANNA_LIVE_PROVIDER_TEST=1`.
 
 ### Frontend
 
@@ -384,7 +388,7 @@ TAVILY_API_KEY=<key>
 
 1. Run `python manage.py migrate` against PostgreSQL.
 2. Run `python manage.py collectstatic` (if serving static files).
-3. Serve via Gunicorn behind a reverse proxy (nginx / Cloudflare / ALB) with HTTPS.
+3. Serve via Gunicorn behind a reverse proxy (nginx/Cloudflare/ALB) with HTTPS.
 4. Set secure cookies: `SESSION_COOKIE_SECURE=true`, `CSRF_COOKIE_SECURE=true`.
 5. Add health monitoring on `GET /api/v1/health/`.
 6. Configure backups and a rollback plan for PostgreSQL and media.
@@ -451,8 +455,6 @@ Block merge if any check fails. Do not commit `.env`, `.env.local`, `db.sqlite3`
 
 See [`SECURITY.md`](SECURITY.md) for the full security policy, production checklist, and vulnerability reporting instructions.
 
-See [`bugs.md`](bugs.md) for the known issue register.
-
 ---
 
 ## Contributing
@@ -461,7 +463,7 @@ See [`CONTRIBUTING.md`](CONTRIBUTING.md) for required reading, product rules, te
 
 ### Before changing product behavior
 
-Read `AGENTS.md`, `SWIFTPOST_REBUILD_PRD.md`, `docs/TECH_STACK.md`, `docs/BACKEND_IMPLEMENTATION.md`, and `docs/BACKEND_STATUS.md`. Keep changes small and coherent; add migrations and tests for behavior changes; run the checks above before submitting. Do not commit secrets or production credentials.
+Read `docs/AGENTS.md`, `docs/SWIFTPOST_REBUILD_PRD.md`, `docs/TECH_STACK.md`, `docs/BACKEND_IMPLEMENTATION.md`, and `docs/BACKEND_STATUS.md`. Keep changes small and coherent; add migrations and tests for behavior changes; run the checks above before submitting. Do not commit secrets or production credentials.
 
 ---
 

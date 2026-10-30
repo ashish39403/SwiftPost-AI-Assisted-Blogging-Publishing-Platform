@@ -6,6 +6,7 @@ from django.test import TestCase, override_settings
 from apps.anna.interfaces.llm import ChatMessage, GenerationRequest
 from apps.anna.orchestration.generation import compose_request, review_request
 from apps.anna.providers.selected_llm import OpenAICompatibleLLM
+from apps.composer.parsers import parse_article
 
 
 class FakeChat:
@@ -22,6 +23,10 @@ class FakeChat:
         self.calls.append(messages)
         return type("Result", (), {"content": self.content})()
 
+    def stream(self, messages):
+        self.calls.append(messages)
+        yield type("Chunk", (), {"content": self.content})()
+
 
 class LangChainAdapterTests(TestCase):
     def test_prompt_templates_stay_inside_application_message_types(self):
@@ -29,7 +34,7 @@ class LangChainAdapterTests(TestCase):
         self.assertEqual(compose.kind, "compose")
         self.assertEqual(compose.messages[0].role, "system")
         self.assertIn("Local solar", compose.messages[1].content)
-        self.assertIn("refused", compose.messages[0].content)
+        self.assertIn("Unable to help", compose.messages[0].content)
         self.assertIn("illegal", compose.messages[0].content)
         self.assertIn("Opening", compose.messages[1].content)
 
@@ -57,8 +62,10 @@ class LangChainAdapterTests(TestCase):
                         messages=[ChatMessage(role="user", content="Write it")],
                     )
                 )
-        payload = json.loads(result.text)
-        self.assertEqual(payload, {"title": "A", "excerpt": "B", "body": "C"})
+        article = parse_article(result.text)
+        self.assertEqual(article["title"], "A")
+        self.assertEqual(article["excerpt"], "B")
+        self.assertEqual(article["body"], "C")
         self.assertEqual(result.model, "gpt-4o-mini")
         self.assertEqual(len(fake.calls), 1)
 

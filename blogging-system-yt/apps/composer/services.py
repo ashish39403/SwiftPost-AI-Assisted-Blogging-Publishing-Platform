@@ -68,14 +68,19 @@ def list_conversations(*, actor, include_archived=False):
     queryset = Conversation.objects.filter(author=actor).select_related("post")
     if not include_archived:
         queryset = queryset.filter(status=ConversationStatus.ACTIVE)
-    return queryset.prefetch_related("messages", "post__image_suggestions", "compose_runs")
+    conversations = list(queryset.prefetch_related("messages", "post__image_suggestions", "compose_runs"))
+    for conversation in conversations:
+        _fail_stale_runs(conversation)
+    return conversations
 
 
 def owned_conversation(*, actor, conversation_id):
     try:
-        return Conversation.objects.select_related("post").prefetch_related("messages", "post__image_suggestions", "compose_runs").get(
+        conversation = Conversation.objects.select_related("post").prefetch_related("messages", "post__image_suggestions", "compose_runs").get(
             pk=conversation_id, author=actor
         )
+        _fail_stale_runs(conversation)
+        return conversation
     except Conversation.DoesNotExist:
         from rest_framework.exceptions import NotFound
 
@@ -147,12 +152,20 @@ def _schedule_compose_run(run_id):
     if getattr(settings, "COMPOSE_RUN_JOBS_INLINE", True):
         _execute_compose_run(run_id)
         return
-    threading.Thread(
-        target=_execute_compose_run_isolated,
-        args=(run_id,),
-        name=f"compose-run-{run_id}",
-        daemon=True,
-    ).start()
+
+    def start():
+        threading.Thread(
+            target=_execute_compose_run_isolated,
+            args=(run_id,),
+            name=f"compose-run-{run_id}",
+            daemon=True,
+        ).start()
+
+    connection = transaction.get_connection()
+    if connection.in_atomic_block:
+        transaction.on_commit(start)
+    else:
+        start()
 
 
 def _execute_compose_run_isolated(run_id):
@@ -172,27 +185,29 @@ def _execute_compose_run(run_id, llm=None):
     post = conversation.post
     prompt = run.title_input
     provider = llm or get_llm_provider()
+    request = compose_request(
+        prompt,
+        current_title=post.title if post else "",
+        current_excerpt=post.excerpt if post else "",
+        current_body=post.body if post else "",
+        instruction=prompt if post else "",
+    )
+    assistant = _add_message(conversation, MessageRole.ASSISTANT, "")
+    collected = []
     try:
-        result = provider.generate(
-            compose_request(
-                prompt,
-                current_title=post.title if post else "",
-                current_excerpt=post.excerpt if post else "",
-                current_body=post.body if post else "",
-                instruction=prompt if post else "",
-            )
-        )
-        article = parse_article(result.text)
+        for piece in _iter_compose_text(provider, request):
+            collected.append(piece)
+            _flush_assistant(assistant.pk, collected)
+        text = "".join(collected).strip()
+        _last_flush.pop(assistant.pk, None)
+        if not text:
+            raise ProviderUnavailable("The writing model returned empty text.")
+        article = parse_article(text)
+        formatted = _article_message(article)
+        Message.objects.filter(pk=assistant.pk).update(content=formatted)
         with transaction.atomic():
             if article.get("refused"):
-                run.generated_title = article.get("title") or ""
-                run.generated_excerpt = article.get("excerpt") or ""
-                run.generated_body = article.get("body") or ""
-                run.model_name = result.model[:80]
-                run.status = JobStatus.SUCCEEDED
-                run.finished_at = timezone.now()
-                run.save()
-                _add_message(conversation, MessageRole.ASSISTANT, _article_message(article))
+                _finish_run(run, article, model_name=_model_name(provider, request), post=None)
                 return
             if post:
                 update_draft(
@@ -213,28 +228,79 @@ def _execute_compose_run(run_id, llm=None):
                 )
                 conversation.post = post
                 conversation.save(update_fields=["post", "updated_at"])
-            run.post = post
-            run.generated_title = article["title"]
-            run.generated_excerpt = article["excerpt"]
-            run.generated_body = article["body"]
-            run.model_name = result.model[:80]
-            run.status = JobStatus.SUCCEEDED
-            run.finished_at = timezone.now()
-            run.save()
-            _add_message(conversation, MessageRole.ASSISTANT, _article_message(article))
+            _finish_run(run, article, model_name=_model_name(provider, request), post=post)
         if post:
             try:
                 suggest_images_for_post(actor=actor, post=post, query=article["title"] or prompt)
             except Exception:
                 pass
     except (ProviderNotConfigured, ProviderUnavailable, ValidationError) as exc:
+        _keep_or_drop_assistant(assistant.pk, collected)
         _fail(run, exc)
         if getattr(settings, "COMPOSE_RUN_JOBS_INLINE", True):
             raise
     except Exception:
+        _keep_or_drop_assistant(assistant.pk, collected)
         _fail(run, None)
         if getattr(settings, "COMPOSE_RUN_JOBS_INLINE", True):
             raise ProviderUnavailable("The writing model could not complete the request.")
+
+
+def _iter_compose_text(provider, request):
+    stream = getattr(provider, "stream", None)
+    if callable(stream):
+        yield from stream(request)
+        return
+    result = provider.generate(request)
+    if result.text:
+        yield result.text
+
+
+_last_flush = {}
+
+
+def _flush_assistant(message_id, chunks):
+    now = time.monotonic()
+    previous = _last_flush.get(message_id, 0)
+    if now - previous < _STREAM_FLUSH_SECONDS:
+        return
+    _last_flush[message_id] = now
+    Message.objects.filter(pk=message_id).update(content="".join(chunks))
+
+
+def _keep_or_drop_assistant(message_id, chunks):
+    text = "".join(chunks).strip()
+    _last_flush.pop(message_id, None)
+    if text:
+        Message.objects.filter(pk=message_id).update(content=text)
+    else:
+        Message.objects.filter(pk=message_id).delete()
+
+
+def _finish_run(run, article, *, model_name, post):
+    run.post = post
+    run.generated_title = article.get("title") or ""
+    run.generated_excerpt = article.get("excerpt") or ""
+    run.generated_body = article.get("body") or ""
+    run.model_name = (model_name or "")[:80]
+    run.status = JobStatus.SUCCEEDED
+    run.finished_at = timezone.now()
+    run.save()
+
+
+def _model_name(provider, request):
+    return getattr(settings, "AI_MODEL_COMPOSE", "") or getattr(request, "kind", "")
+
+
+def _fail_stale_runs(conversation):
+    cutoff = timezone.now() - _STALE_AFTER
+    updated = conversation.compose_runs.filter(status__in=_ACTIVE_RUN_STATUSES, created_at__lt=cutoff).update(
+        status=JobStatus.FAILED,
+        error_message="The writing model took too long.",
+        finished_at=timezone.now(),
+    )
+    if updated and hasattr(conversation, "_prefetched_objects_cache"):
+        conversation._prefetched_objects_cache.pop("compose_runs", None)
 
 
 def owned_run(actor, run_id):
