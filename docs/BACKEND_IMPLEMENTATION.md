@@ -10,7 +10,7 @@
 **Background work:** Deferred to V2; V1 AI conversation requests are synchronous and bounded
 **Date:** 30 October 2026
 
-> **30 October 2026 implementation status:** The Django API and Next.js workspace are a writer platform. Registration creates `author`. Authors publish and unpublish their own complete posts; admins can unpublish any live post. Composer conversations create/refine private drafts (Nemotron) with optional Tavily images. Anna's live UI is one-shot review (`POST /api/v1/ai/reviews/`); conversation APIs exist but the chat sidebar was removed by product request. Do not introduce Celery, Redis, research jobs, retries, polling, or Anna live research unless asked. Full in-app user-management remains planned. See `docs/AI_CONVERSATION_V1.md` and `blogging-system-yt/BACKEND_STATUS.md`.
+> **30 October 2026 implementation status:** The Django API and Next.js workspace are a writer platform. Registration creates `author`. Authors publish and unpublish their own complete posts; admins can unpublish any live post. Composer conversations create/refine private drafts (Nemotron) with optional Tavily images. Anna's live UI is one-shot review (`POST /api/v1/ai/reviews/`); conversation APIs exist but the chat sidebar was removed by product request. Do not introduce Celery, Redis, research jobs, retries, polling, or Anna live research unless asked. Full in-app user-management remains planned. See `docs/AI_CONVERSATION_V1.md` and `docs/BACKEND_STATUS.md`.
 
 ---
 

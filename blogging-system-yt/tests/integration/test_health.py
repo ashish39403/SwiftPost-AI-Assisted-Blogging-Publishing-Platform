@@ -12,6 +12,12 @@ class HealthApiTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json(), {"status": "ok", "service": "swiftpost-api"})
 
+    def test_root_health_alias_is_public(self):
+        response = self.client.get("/health/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {"status": "ok", "service": "swiftpost-api"})
+
     def test_health_rejects_other_methods_with_error_envelope(self):
         response = self.client.post("/api/v1/health/", {}, format="json")
 

@@ -15,7 +15,7 @@ V1 does **not** add Anna live-web research, source collection, Celery, Redis, re
 ## Composer journey (current)
 
 1. Author opens `/compose` and sees only their Composer conversations.
-2. Author starts with a title or brief. The server stores the message, generates a full private draft, and may store image suggestions.
+2. Author starts with a title or brief. The server stores the chat immediately, then writes a private draft in the background. The Composer page polls that chat until the draft appears.
 3. Follow-ups refine the same draft. History survives refresh.
 4. Author opens the draft in `/editor/{id}` or **Stories**, then publishes themselves. Composer never publishes.
 

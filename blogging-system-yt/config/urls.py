@@ -7,6 +7,7 @@ from apps.common.health import api_not_found, health
 
 urlpatterns = [
     path("admin/", admin.site.urls),
+    path("health/", health, name="health"),
     path("api/v1/health/", health, name="api-health"),
     path("api/v1/", include("apps.accounts.urls")),
     path("api/v1/", include("apps.categories.urls")),

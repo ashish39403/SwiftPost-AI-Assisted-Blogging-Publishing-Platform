@@ -63,7 +63,7 @@ We will acknowledge receipt within 5 business days and provide an initial assess
 
 ## Additional reading
 
-- `AGENTS.md` — agent/product conventions
-- `SWIFTPOST_REBUILD_PRD.md` — product requirements and trust boundaries
-- `blogging-system-yt/BACKEND_STATUS.md` — live API contract
-- `blogging-system-yt/TECH_STACK.md` — architecture and security requirements
+- `docs/AGENTS.md` — agent/product conventions
+- `docs/SWIFTPOST_REBUILD_PRD.md` — product requirements and trust boundaries
+- `docs/BACKEND_STATUS.md` — live API contract
+- `docs/TECH_STACK.md` — architecture and security requirements

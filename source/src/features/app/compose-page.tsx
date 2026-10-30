@@ -70,32 +70,69 @@ export function ComposePage() {
   useEffect(() => {
     if (!active?.is_generating) return
     const poll = window.setInterval(() => {
-      void api(`/api/v1/ai/composer/conversations/${active.id}/`)
-        .then(async (response) => {
-          if (!response.ok) return
-          const next = (await response.json()) as AiConversation
-          setActive(next)
-          setConversations((items) => items.map((item) => (item.id === next.id ? next : item)))
+      void loadConversation(active.id)
+        .then((next) => {
+          if (!next) return
+          applyConversation(next)
+          if (!next.is_generating && next.last_error && next.messages.every((item) => item.role !== "assistant")) {
+            setPending(false)
+            setNotice(next.last_error)
+          }
         })
         .catch(() => null)
-    }, 2500)
+    }, 1500)
     return () => window.clearInterval(poll)
   }, [active?.id, active?.is_generating])
+
+  async function loadConversation(id: string) {
+    const response = await api(`/api/v1/ai/composer/conversations/${id}/`)
+    if (!response.ok) return null
+    return (await response.json()) as AiConversation
+  }
+
+  function applyConversation(conversation: AiConversation) {
+    setActive(conversation)
+    activeId.current = conversation.id
+    wantedId.current = conversation.id
+    setConversations((items) => {
+      const exists = items.some((item) => item.id === conversation.id)
+      if (!exists) return [conversation, ...items]
+      return items.map((item) => (item.id === conversation.id ? conversation : item))
+    })
+  }
+
+  function composerFinished(conversation: AiConversation, assistantCount: number) {
+    const nextAssistants = conversation.messages.filter((item) => item.role === "assistant").length
+    if (conversation.last_error && !conversation.is_generating && nextAssistants <= assistantCount) {
+      return "error" as const
+    }
+    if (!conversation.is_generating && (nextAssistants > assistantCount || conversation.post)) {
+      return "done" as const
+    }
+    return "wait" as const
+  }
 
   async function waitForComposerResult(conversationId: string | null, assistantCount: number, sentAt: number) {
     const deadline = Date.now() + AI_WAIT_MS
     while (Date.now() < deadline) {
-      await sleep(2000)
+      await sleep(1500)
       try {
-        const response = await api("/api/v1/ai/composer/conversations/?page_size=50")
-        if (!response.ok) continue
-        const next = ((await response.json()) as Paginated<AiConversation>).results
-        const match = conversationId
-          ? next.find((item) => item.id === conversationId)
-          : next.find((item) => Date.parse(item.updated_at) >= sentAt - 8000) ?? next[0]
+        let match: AiConversation | null = null
+        if (conversationId) {
+          match = await loadConversation(conversationId)
+        } else {
+          const response = await api("/api/v1/ai/composer/conversations/?page_size=50")
+          if (!response.ok) continue
+          const next = ((await response.json()) as Paginated<AiConversation>).results
+          match = next.find((item) => Date.parse(item.updated_at) >= sentAt - 8000) ?? next[0] ?? null
+        }
         if (!match) continue
-        const nextAssistants = match.messages.filter((item) => item.role === "assistant").length
-        if (!match.is_generating && nextAssistants > assistantCount) {
+        applyConversation(match)
+        syncConversationUrl(match.id)
+        const state = composerFinished(match, assistantCount)
+        if (state === "done") return match
+        if (state === "error") {
+          setNotice(match.last_error || "Composer could not finish that draft.")
           return match
         }
       } catch {
@@ -111,6 +148,17 @@ export function ComposePage() {
     activeId.current = conversation.id
     wantedId.current = conversation.id
     syncConversationUrl(conversation.id)
+  }
+
+  async function finishComposerWait(conversationId: string | null, assistantCount: number, sentAt: number) {
+    const recovered = await waitForComposerResult(conversationId, assistantCount, sentAt)
+    if (recovered && composerFinished(recovered, assistantCount) === "done") {
+      showConversation(recovered)
+      await loadConversations(recovered.id)
+      return true
+    }
+    if (recovered?.last_error) return true
+    return false
   }
 
   async function send(event: React.FormEvent) {
@@ -136,25 +184,24 @@ export function ComposePage() {
         const body = (await response.json()) as AiConversation | CreateResponse
         const conversation = "conversation" in body ? body.conversation : body
         showConversation(conversation)
+        if (conversation.is_generating) {
+          const finished = await finishComposerWait(conversation.id, assistantCount, sentAt)
+          if (!finished) {
+            setNotice("Composer is still writing. Stay on this page — the draft should appear without a refresh.")
+          }
+          return
+        }
         await loadConversations(conversation.id)
         return
       }
       if (isRetryableAiStatus(response.status)) {
-        const recovered = await waitForComposerResult(conversationId, assistantCount, sentAt)
-        if (recovered) {
-          showConversation(recovered)
-          await loadConversations(recovered.id)
-          return
-        }
+        const finished = await finishComposerWait(conversationId, assistantCount, sentAt)
+        if (finished) return
       }
       setNotice(await readError(response, "Composer could not answer that request."))
     } catch {
-      const recovered = await waitForComposerResult(conversationId, assistantCount, sentAt)
-      if (recovered) {
-        showConversation(recovered)
-        await loadConversations(recovered.id)
-        return
-      }
+      const finished = await finishComposerWait(conversationId, assistantCount, sentAt)
+      if (finished) return
       setNotice("Composer is still writing. Stay on this page — the draft should appear without a refresh.")
     } finally {
       setPending(false)
@@ -261,7 +308,13 @@ export function ComposePage() {
               </div>
             </div>
             {active ? (
-              <button type="button" onClick={() => void archive()} className="app-icon-button" aria-label="Archive chat">
+              <button
+                type="button"
+                onClick={() => void archive()}
+                className="app-icon-button"
+                aria-label="Archive chat"
+                disabled={pending || Boolean(active.is_generating)}
+              >
                 <Archive className="size-4" />
               </button>
             ) : null}
@@ -283,7 +336,12 @@ export function ComposePage() {
                 {message.role === "assistant" ? <ComposerAnswer content={message.content} /> : <div className="whitespace-pre-wrap">{message.content}</div>}
               </div>
             ))}
-            {pending || active?.is_generating ? <AiPipeline steps={COMPOSE_PIPELINE} /> : null}
+            {pending || active?.is_generating ? (
+              <div className="space-y-3">
+                <AiPipeline steps={COMPOSE_PIPELINE} />
+                <p className="text-xs text-muted-foreground">Composer is writing a private draft. This often takes one to two minutes — stay on this page.</p>
+              </div>
+            ) : null}
             {notice ? (
               <p role="status" className="rounded-xl border border-destructive/30 bg-destructive/8 px-3 py-2 text-sm">
                 {notice}

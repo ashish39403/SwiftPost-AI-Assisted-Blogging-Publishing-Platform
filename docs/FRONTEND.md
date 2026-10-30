@@ -64,7 +64,7 @@ The typed client is in `src/lib/api.ts`.
 - Authentication is Django-session based; there is no JWT handling in the frontend.
 - Relative media paths are resolved against `NEXT_PUBLIC_API_URL` when it is configured.
 
-See [`../blogging-system-yt/BACKEND_STATUS.md`](../blogging-system-yt/BACKEND_STATUS.md) for the current API behaviour and deployment status.
+See [`BACKEND_STATUS.md`](BACKEND_STATUS.md) for the current API behaviour and deployment status.
 
 ## Checks
 

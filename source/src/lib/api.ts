@@ -107,6 +107,7 @@ export type AiConversation = {
   post: Post | null
   messages: ConversationMessage[]
   is_generating?: boolean
+  last_error?: string
   suggested_images?: ImageSuggestion[]
   created_at: string
   updated_at: string

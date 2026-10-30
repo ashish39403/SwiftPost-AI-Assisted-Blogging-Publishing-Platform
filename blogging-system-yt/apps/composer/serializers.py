@@ -1,7 +1,7 @@
 from rest_framework import serializers
 
 from apps.blogs.serializers import PostSerializer
-from apps.composer.models import ComposeRun, Conversation, Message
+from apps.composer.models import ComposeRun, Conversation, JobStatus, Message
 from apps.media_assets.serializers import ImageSuggestionSerializer
 
 
@@ -48,10 +48,22 @@ class ComposerConversationSerializer(serializers.ModelSerializer):
     messages = ComposerMessageSerializer(many=True, read_only=True)
     suggested_images = serializers.SerializerMethodField()
     is_generating = serializers.SerializerMethodField()
+    last_error = serializers.SerializerMethodField()
 
     class Meta:
         model = Conversation
-        fields = ("id", "title", "status", "post", "messages", "suggested_images", "is_generating", "created_at", "updated_at")
+        fields = (
+            "id",
+            "title",
+            "status",
+            "post",
+            "messages",
+            "suggested_images",
+            "is_generating",
+            "last_error",
+            "created_at",
+            "updated_at",
+        )
         read_only_fields = fields
 
     def get_suggested_images(self, conversation):
@@ -61,6 +73,12 @@ class ComposerConversationSerializer(serializers.ModelSerializer):
 
     def get_is_generating(self, conversation):
         return conversation.compose_runs.filter(status__in=("queued", "running")).exists()
+
+    def get_last_error(self, conversation):
+        run = conversation.compose_runs.order_by("-created_at").first()
+        if run and run.status == JobStatus.FAILED:
+            return run.error_message
+        return ""
 
 
 class ComposerConversationCreateSerializer(serializers.Serializer):

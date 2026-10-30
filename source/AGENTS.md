@@ -1,8 +1,8 @@
 # SwiftPost frontend
 
-This is the Next.js app for SwiftPost (`H:\Blog_Webapp\source`). Signup creates an **author**. Authors publish/unpublish their own posts. Composer writes private drafts. Anna is a **one-shot review** (`POST /api/v1/ai/reviews/`); do not add an Anna chat sidebar unless the user asks.
+Follow [`docs/AGENTS.md`](../docs/AGENTS.md) and [`docs/FRONTEND.md`](../docs/FRONTEND.md).
 
-Read `H:\Blog_Webapp\AGENTS.md` and `H:\Blog_Webapp\SWIFTPOST_REBUILD_PRD.md` before changing product behavior. Do not modify this frontend unless the user explicitly asks for UI work.
+This is the Next.js app (`source/`). Signup creates an **author**. Composer writes private drafts. Anna is a **one-shot review** (`POST /api/v1/ai/reviews/`). Do not add an Anna chat sidebar unless the user asks. Do not modify this frontend unless the user explicitly asks for UI work.
 
 <!-- BEGIN:nextjs-agent-rules -->
 

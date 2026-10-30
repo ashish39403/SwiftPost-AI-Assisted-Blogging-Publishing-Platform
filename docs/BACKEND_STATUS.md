@@ -50,7 +50,7 @@ The old `blog_main`, `blogs`, `dashboards`, and `assignments` packages were remo
 | Posts | Authors create private drafts. Public lists and detail show `published` posts only |
 | Publishing | Authors publish and unpublish their own complete drafts. Admins can unpublish any live post. AI never publishes |
 | Media | Authors attach one JPEG, PNG, or WebP featured image to an editable draft. They can also search live photos through Tavily and attach a suggestion after a server-side download |
-| Composer | Authors can create, resume, list, and archive owner-scoped chats under `/api/v1/ai/composer/conversations/`. The first message creates a private draft; later messages persist refinement responses. Composer never publishes |
+| Composer | Authors can create, resume, list, and archive owner-scoped chats under `/api/v1/ai/composer/conversations/`. Create/follow-up return the conversation immediately with `is_generating=true`; the UI polls `GET /conversations/{id}/` until the private draft exists. Composer never publishes |
 | Anna review | `POST /api/v1/ai/reviews/` reviews an owned draft and returns notes. The current frontend is a one-shot review with a loading pipeline and an explicit handoff to Composer. Anna does not publish |
 | Comments | Authenticated users comment on published posts. Comments are approved immediately and show on the public post |
 | Likes | Confirmed addition. Authenticated users can like a published post. The like toggles. Counts appear on post payloads |

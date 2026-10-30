@@ -195,3 +195,24 @@ class ComposeApiTests(TestCase):
         self.assertEqual(created.status_code, 201)
         self.assertEqual(continued.status_code, 200)
         self.assertEqual(suggest.call_count, 2)
+
+    def test_conversation_create_can_return_before_the_model_finishes(self):
+        article = {"title": "A", "excerpt": "B", "body": "Body."}
+        fake = FakeLLM(json.dumps(article))
+        with self.settings(COMPOSE_RUN_JOBS_INLINE=False):
+            with patch("apps.composer.services.get_llm_provider", return_value=fake):
+                with patch("apps.composer.services._schedule_compose_run") as schedule:
+                    created = self.author_client.post(
+                        "/api/v1/ai/composer/conversations/",
+                        {"message": "Write about coastal cities"},
+                        format="json",
+                    )
+
+        self.assertEqual(created.status_code, 201)
+        conversation = created.json()["conversation"]
+        self.assertTrue(conversation["is_generating"])
+        self.assertIsNone(conversation["post"])
+        self.assertEqual(len(conversation["messages"]), 1)
+        self.assertEqual(conversation["messages"][0]["role"], "user")
+        self.assertEqual(schedule.call_count, 1)
+        self.assertEqual(len(fake.calls), 0)

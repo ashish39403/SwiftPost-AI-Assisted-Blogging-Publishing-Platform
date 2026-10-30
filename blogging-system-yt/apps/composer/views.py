@@ -13,11 +13,11 @@ from apps.composer.services import (
     archive_conversation,
     compose_from_title,
     continue_conversation,
-    create_conversation,
     list_conversations,
     owned_conversation,
     owned_run,
     rename_conversation,
+    start_conversation_compose,
 )
 from apps.common.pagination import paginated_response
 from apps.users.permissions import IsAuthor
@@ -52,12 +52,12 @@ class ComposerConversationListView(APIView):
         serializer = ComposerConversationCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         message = serializer.validated_data.get("message") or serializer.validated_data.get("title", "")
-        conversation = create_conversation(actor=request.user, title=serializer.validated_data.get("title", message))
-        run = compose_from_title(actor=request.user, title=message, conversation=conversation)
+        conversation = start_conversation_compose(actor=request.user, title=message)
+        run = conversation.compose_runs.order_by("-created_at").first()
         return Response(
             {
-                "conversation": ComposerConversationSerializer(owned_conversation(actor=request.user, conversation_id=conversation.id), context={"request": request}).data,
-                "run": ComposeRunSerializer(run, context={"request": request}).data,
+                "conversation": ComposerConversationSerializer(conversation, context={"request": request}).data,
+                "run": ComposeRunSerializer(run, context={"request": request}).data if run else None,
             },
             status=201,
         )

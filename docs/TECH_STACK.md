@@ -516,7 +516,7 @@ The frontend must never call the LLM provider directly. Provider responses must 
 
 ## 14. API design and endpoint groups
 
-Live groups (see `BACKEND_STATUS.md` for the contract):
+Live groups (see `docs/BACKEND_STATUS.md` for the contract):
 
 ```text
 /api/v1/auth/

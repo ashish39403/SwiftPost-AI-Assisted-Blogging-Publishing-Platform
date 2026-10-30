@@ -6,6 +6,7 @@ production or for a production-parity check.
 """
 
 import os
+import sys
 from pathlib import Path
 from urllib.parse import unquote, urlparse
 
@@ -25,6 +26,7 @@ def _database_from_env():
         return {
             "ENGINE": "django.db.backends.sqlite3",
             "NAME": BASE_DIR / "db.sqlite3",
+            "OPTIONS": {"timeout": 30},
         }
 
     parsed = urlparse(url)
@@ -155,6 +157,16 @@ TAVILY_API_KEY = os.environ.get("TAVILY_API_KEY", "").strip()
 TAVILY_MAX_RESULTS = min(int(os.environ.get("TAVILY_MAX_RESULTS", "5")), 10)
 TAVILY_TEST_BUDGET = int(os.environ.get("TAVILY_TEST_BUDGET", "12"))
 ANNA_RUN_JOBS_INLINE = os.environ.get("ANNA_RUN_JOBS_INLINE", "true").lower() in {
+    "1",
+    "true",
+    "yes",
+}
+# Conversation POST returns immediately and the UI polls. Tests stay inline so
+# existing Composer assertions still see the finished draft on the create response.
+COMPOSE_RUN_JOBS_INLINE = os.environ.get(
+    "COMPOSE_RUN_JOBS_INLINE",
+    "true" if "test" in sys.argv else "false",
+).lower() in {
     "1",
     "true",
     "yes",

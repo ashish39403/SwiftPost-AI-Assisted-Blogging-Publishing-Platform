@@ -4,11 +4,11 @@ SwiftPost is a Django REST Framework backend (`blogging-system-yt/`) and a Next.
 
 ## Required reading (before any change)
 
-1. `AGENTS.md` (root) — product conventions and authz rules.
-2. `SWIFTPOST_REBUILD_PRD.md` — product scope and acceptance criteria.
-3. `BACKEND_IMPLEMENTATION.md` — backend implementation plan.
-4. `blogging-system-yt/TECH_STACK.md` — architecture baseline.
-5. `blogging-system-yt/BACKEND_STATUS.md` — live API contract.
+1. `docs/AGENTS.md` — product conventions and authz rules.
+2. `docs/SWIFTPOST_REBUILD_PRD.md` — product scope and acceptance criteria.
+3. `docs/BACKEND_IMPLEMENTATION.md` — backend implementation plan.
+4. `docs/TECH_STACK.md` — architecture baseline.
+5. `docs/BACKEND_STATUS.md` — live API contract.
 
 ## Product rules (non-negotiable)
 
@@ -26,7 +26,7 @@ SwiftPost is a Django REST Framework backend (`blogging-system-yt/`) and a Next.
 2. Make the smallest coherent change. No unrelated rewrites.
 3. Add or update migrations and tests for behavior changes.
 4. Run the checks below. All must pass.
-5. Update docs when behavior changes (`SWIFTPOST_REBUILD_PRD.md`, `TECH_STACK.md`, `BACKEND_IMPLEMENTATION.md`, `BACKEND_STATUS.md`, `.env.example` names only).
+5. Update docs when behavior changes (`docs/SWIFTPOST_REBUILD_PRD.md`, `docs/TECH_STACK.md`, `docs/BACKEND_IMPLEMENTATION.md`, `docs/BACKEND_STATUS.md`, `.env.example` names only).
 6. Open a pull request linking the issue and describing what changed, how it was tested, and any deploy notes.
 
 ## Backend checks (run in `blogging-system-yt`)

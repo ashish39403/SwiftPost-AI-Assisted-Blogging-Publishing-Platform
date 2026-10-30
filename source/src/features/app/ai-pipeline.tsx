@@ -3,40 +3,46 @@
 import { useEffect, useState } from "react"
 
 export const COMPOSE_PIPELINE = [
-  "Reading the title",
-  "Searching live images",
-  "Writing the article",
-  "Saving a private draft",
-]
+  { label: "Reading the title", holdMs: 4000 },
+  { label: "Searching live images", holdMs: 14000 },
+  { label: "Writing the article", holdMs: 240000 },
+  { label: "Saving a private draft", holdMs: 240000 },
+] as const
 
 export const ANNA_PIPELINE = [
-  "Opening the draft",
-  "Checking the structure",
-  "Writing review notes",
-]
+  { label: "Opening the draft", holdMs: 2500 },
+  { label: "Checking the structure", holdMs: 8000 },
+  { label: "Writing review notes", holdMs: 180000 },
+] as const
 
-export function AiPipeline({ steps }: { steps: readonly string[] }) {
+type PipelineStep = { readonly label: string; readonly holdMs: number }
+
+export function AiPipeline({ steps }: { steps: readonly PipelineStep[] }) {
   const [step, setStep] = useState(0)
 
   useEffect(() => {
-    const id = window.setInterval(() => {
-      setStep((current) => Math.min(current + 1, steps.length - 1))
-    }, 1600)
-    return () => window.clearInterval(id)
+    const timers: number[] = []
+    let elapsed = 0
+    steps.forEach((item, index) => {
+      if (index === 0) return
+      elapsed += steps[index - 1].holdMs
+      timers.push(window.setTimeout(() => setStep(index), elapsed))
+    })
+    return () => timers.forEach((id) => window.clearTimeout(id))
   }, [steps])
 
   return (
     <ol className="ai-pipeline" aria-live="polite" aria-label="Generation progress">
-      {steps.map((label, index) => {
+      {steps.map((item, index) => {
         const state = index < step ? "done" : index === step ? "active" : "wait"
         return (
-          <li key={label} data-state={state}>
+          <li key={item.label} data-state={state}>
             <span className="pipe-dot" />
             <span>
               <span className="block text-[11px] font-medium tracking-[.14em] text-muted-foreground uppercase">
                 {state === "done" ? "Done" : state === "active" ? "Working" : "Waiting"}
               </span>
-              {label}
+              {item.label}
             </span>
           </li>
         )

@@ -43,7 +43,7 @@ Send cookies on every request. For unsafe methods, fetch CSRF first and send `X-
 | Composer | `/api/v1/ai/compose/`, `/api/v1/ai/composer/conversations/` |
 | Anna review | `POST /api/v1/ai/reviews/` |
 
-See `BACKEND_STATUS.md` for the live contract.
+See `docs/BACKEND_STATUS.md` for the live contract.
 
 ## Tests
 
