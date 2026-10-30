@@ -38,21 +38,8 @@ class OpenAICompatibleLLM:
         if _running_django_tests():
             raise ProviderUnavailable("Live model calls are disabled during automated tests.")
 
-        chat = _chat_model(model=model, key=key, base=base, request=request)
-        messages = [_ROLE.get(item.role, HumanMessage)(content=item.content) for item in request.messages]
         try:
-            result = chat.invoke(messages)
-            text = _content_text(getattr(result, "content", result))
-            if request.kind == "compose":
-                text = _as_article_json(text)
-                if not _has_article_keys(text):
-                    repair = messages + [
-                        HumanMessage(
-                            content="Return JSON only with keys title, excerpt, and body. No markdown."
-                        )
-                    ]
-                    result = chat.invoke(repair)
-                    text = _as_article_json(_content_text(getattr(result, "content", result)))
+            text = "".join(self.stream(request)).strip()
         except ProviderUnavailable:
             raise
         except Exception as exc:
@@ -61,6 +48,27 @@ class OpenAICompatibleLLM:
         if not text:
             raise ProviderUnavailable("The writing model returned empty text.")
         return ProviderGenerationResult(text=text, model=model)
+
+    def stream(self, request: GenerationRequest):
+        key = settings.AI_PROVIDER_API_KEY
+        base = settings.AI_PROVIDER_BASE_URL
+        model = model_for(request.kind)
+        if not key or not base:
+            raise ProviderNotConfigured("The writing model is not configured.")
+        if _running_django_tests():
+            raise ProviderUnavailable("Live model calls are disabled during automated tests.")
+
+        chat = _chat_model(model=model, key=key, base=base, request=request)
+        messages = [_ROLE.get(item.role, HumanMessage)(content=item.content) for item in request.messages]
+        try:
+            for chunk in chat.stream(messages):
+                piece = _content_text(getattr(chunk, "content", "") or "")
+                if piece:
+                    yield piece
+        except ProviderUnavailable:
+            raise
+        except Exception as exc:
+            raise ProviderUnavailable(_safe_provider_error(exc)) from exc
 
 
 def model_for(kind):
@@ -88,11 +96,6 @@ def _chat_model(*, model, key, base, request):
     except TypeError:
         kwargs.pop("use_responses_api", None)
         chat = ChatOpenAI(**kwargs)
-    if request.kind == "compose" and _supports_json_object(model):
-        try:
-            chat = chat.bind(response_format={"type": "json_object"})
-        except Exception:
-            pass
     return chat
 
 

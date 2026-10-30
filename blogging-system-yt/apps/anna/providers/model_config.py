@@ -30,7 +30,7 @@ def chat_options(kind, model, *, max_tokens, timeout):
     options = {
         "model": clean_model_id(model),
         "timeout": timeout,
-        "max_retries": 1,
+        "max_retries": 0 if kind == "compose" else 1,
         "use_responses_api": False,
         "max_completion_tokens": max_tokens,
     }

@@ -29,8 +29,8 @@ def compose_request(title: str, *, current_title="", current_excerpt="", current
     return GenerationRequest(
         kind="compose",
         messages=_to_chat(messages),
-        max_tokens=8192,
-        timeout=240.0,
+        max_tokens=4096,
+        timeout=120.0,
     )
 
 

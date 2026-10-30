@@ -1,5 +1,7 @@
 import logging
 import threading
+import time
+from datetime import timedelta
 
 from django.conf import settings
 from django.db import close_old_connections, transaction
@@ -18,6 +20,8 @@ from apps.media_assets.image_search import suggest_images_for_post
 
 logger = logging.getLogger(__name__)
 _ACTIVE_RUN_STATUSES = (JobStatus.QUEUED, JobStatus.RUNNING)
+_STALE_AFTER = timedelta(minutes=5)
+_STREAM_FLUSH_SECONDS = 0.45
 
 
 def compose_from_title(*, actor, title, llm=None, conversation=None):

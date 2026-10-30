@@ -25,3 +25,7 @@ class ProviderGenerationResult:
 class LLMProvider(Protocol):
     def generate(self, request: GenerationRequest) -> ProviderGenerationResult:
         """Return application-owned text. Provider SDK types stay inside the adapter."""
+
+    def stream(self, request: GenerationRequest):
+        """Yield text chunks. Optional; Composer falls back to generate()."""
+        raise NotImplementedError
